@@ -24,6 +24,7 @@ of a bigger goal: teaching an agent to play the game, so that mods can be resear
 
 - Download it from [Nexus Mods](https://www.nexusmods.com/finalfantasy7rebirth/mods/2479).
 - The video, showing the mod and then how it was built: [YouTube](https://www.youtube.com/watch?v=D6B8tCoiDWA).
+- The 1.1 update video, on damage and healing by character and how it works: [YouTube](https://www.youtube.com/watch?v=wWogmUHIhdc).
 - How to install and use it: [docs/GUIDE.md](docs/GUIDE.md).
 - How we built it, step by step: [docs/HOW-WE-BUILT-IT.md](docs/HOW-WE-BUILT-IT.md).
 - The design in reference form, what was tested and the limits: [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md).
