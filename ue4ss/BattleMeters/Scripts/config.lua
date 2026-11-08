@@ -21,6 +21,11 @@ return {
     -- Pressed with Ctrl+Shift, this steps through DPS, HPS, DTPS and off.
     cycle_key = "D",
 
+    -- Split damage dealt and healing done by character, from the game's own hit events. Needs the optional Battle
+    -- Meters Native mod (UE4SS 3.0.1). Hits are only credited up to the HP really lost or gained, and whatever no hit
+    -- explains shows as Unattributed. Without it, or in a scene that sends no hit events, the panel shows totals.
+    damage_by_character = true,
+
     -- Write meters.json next to this mod, for stream overlays and tests.
     write_json = true,
 

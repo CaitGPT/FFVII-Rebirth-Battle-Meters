@@ -12,7 +12,7 @@ local SHADOW = {R = 0, G = 0, B = 0, A = 0.6}
 local SPRITES = "/Game/Menu/Resident/Texture/"
 local VISIBLE, COLLAPSED = 3, 1                       -- ESlateVisibility: HitTestInvisible, Collapsed
 local RIGHT = 2                                       -- ETextJustify
-local STATS, SECTIONS = 6, 8                          -- the Healing meter's lines; more than any party's members
+local STATS, SECTIONS = 12, 8                         -- HPS: 6 lines, then up to 5 characters and Unattributed
 local LINE_HEIGHT = 10
 local LINE_EDGE = {R = 0.8, G = 0.92, B = 1, A = 0.7}
 local GAUGE_BACK = {R = 0.25, G = 0.33, B = 0.42, A = 1}

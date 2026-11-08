@@ -8,6 +8,8 @@ local config = require("config")
 local Meters = require("meters")
 local Settings = require("settings")
 local meter_view = require("meter_view")
+local Attribution = require("attribution")
+local native_ok, native_hits = pcall(require, "native_hits")
 local overlay_ok, overlay = pcall(require, "overlay")
 
 local TAG = "[BattleMeters] "
@@ -26,6 +28,8 @@ local MOD_DIR = package.path:match("([^;]*[\\/]BattleMeters[\\/])[Ss]cripts[\\/]
 local SETTINGS_PATH = MOD_DIR .. "settings.txt"
 
 local meters = Meters.new(config.rolling_window_seconds)
+-- Who dealt the damage (targets: enemies) and who did the healing (targets: party members).
+local dealt, healed = Attribution.new(), Attribution.new()
 local mode = Settings.load(SETTINGS_PATH)
 local state = {active = false, stand_aside = false, enemies = {}, party = {}, logged = {}, last_json = 0, view = nil}
 
@@ -151,11 +155,60 @@ local function hide_panel()
     if overlay_ok and overlay then safe(overlay.hide) end
 end
 
+-- Damage and healing by character need the game's hit events, which only Battle Meters Native supplies (see
+-- native_hits.lua). Without it, or switched off in config.lua, the panel keeps to the totals.
+local function hit_events_on()
+    return config.damage_by_character and native_ok and native_hits and state.native == "ok"
+end
+
+-- Hits since the last tick, stamped with this tick's time; the HP they took or healed shows in this tick's reading.
+-- A heal counts on a party member; anything else counts on an enemy (hits on the party are damage taken, which needs
+-- no split: it's already by who took it).
+local function take_hits(now)
+    if not hit_events_on() then return end
+    for _, h in ipairs(native_hits.drain()) do
+        local amount = number(h.damage)
+        if h.heal then
+            local member = healed:player_of(h.target)
+            if member then healed:hit(amount, h.causer, member, now)
+            elseif amount and amount > 0 then healed.unknown_target = healed.unknown_target + 1 end
+        elseif not dealt:player_of(h.target) then
+            dealt:hit(amount, h.causer, h.target, now)
+        end
+    end
+    local _, dropped = native_hits.status()
+    if dropped > 0 then log_once("hits_dropped", string.format("hit events: %d dropped, queue full", dropped)) end
+end
+
 local function begin_battle(count)
     meters:reset()
+    dealt:reset()
+    healed:reset()
     state.active, state.stand_aside, state.enemies, state.party = true, false, {}, {}
     state.over_since, state.linger_until, state.mp = nil, nil, {}
+    state.party_names = {}
     log(string.format("battle started: %d enemies", count))
+    if config.damage_by_character and native_ok and native_hits then
+        state.native = native_hits.status()
+        log_once("native:" .. state.native, state.native == "ok" and "hit events: Battle Meters Native is hooked"
+            or "hit events: Battle Meters Native " .. state.native .. ", so damage and healing show totals only")
+        if state.native == "ok" then native_hits.discard() end
+    end
+end
+
+-- What a live test needs to judge a split: how many hits matched, and any names that didn't.
+local function attribution_report(who, kind)
+    local causers = {}
+    for name, count in pairs(who.unknown_causer) do causers[#causers + 1] = string.format("%s x%d", name, count) end
+    table.sort(causers)
+    local split = {}
+    local k = state.last_snapshot and state.last_snapshot.kinds[kind]
+    for name, amount in pairs(k and k.attributed and k.by_source or {}) do
+        split[#split + 1] = string.format("%s %d", name, amount)
+    end
+    table.sort(split)
+    return string.format("split [%s]; hits matched %d, on unknown targets %d, unknown causers [%s]",
+        table.concat(split, ", "), who.matched_hits, who.unknown_target, table.concat(causers, ", "))
 end
 
 local function end_battle()
@@ -163,6 +216,10 @@ local function end_battle()
     log(string.format("battle ended: damage %d, healing %d, taken %d, mp %d, %.1f s",
         snapshot and snapshot.kinds.damage.total or 0, snapshot and snapshot.kinds.heal.total or 0,
         snapshot and snapshot.kinds.taken.total or 0, snapshot and snapshot.kinds.mp.total or 0, snapshot and snapshot.elapsed or 0))
+    if hit_events_on() then
+        log("damage by character: " .. attribution_report(dealt, "damage"))
+        log("healing by character: " .. attribution_report(healed, "heal"))
+    end
     state.active, state.over_since = false, nil
     state.enemies, state.party = {}, {}
     if state.stand_aside then
@@ -182,19 +239,28 @@ local function track_enemies(battle, list, now, battle_over)
         local cur, max = hp(battle, enemy)
         local known = state.enemies[key]
         if not known then
-            state.enemies[key] = {hp = cur, max = max}
+            -- The name the game's hit events use for this enemy.
+            local actor_name = safe(function() return battle:GetActorName(enemy):ToString() end)
+            state.enemies[key] = {hp = cur, max = max, name = actor_name}
+            dealt:track(actor_name)
             if in_training_territory(enemy) then
                 if not state.stand_aside then log("Training Dummy course: leaving the panel to that mod") end
                 state.stand_aside = true
             end
         elseif cur then
-            if known.hp and cur < known.hp then meters:add("damage", known.hp - cur, now) end
+            if known.hp and cur < known.hp then
+                meters:add("damage", known.hp - cur, now)
+                dealt:change(known.name, known.hp - cur, now)
+            end
             known.hp = cur
         end
     end
     for key, known in pairs(state.enemies) do
         if not present[key] then
-            meters:add("damage", Meters.killing_blow(known.hp, known.max, battle_over), now)
+            local blow = Meters.killing_blow(known.hp, known.max, battle_over)
+            meters:add("damage", blow, now)
+            dealt:change(known.name, blow, now)
+            dealt:forget(known.name)
             state.enemies[key] = nil
         end
     end
@@ -204,18 +270,38 @@ end
 local PLAYER_NAMES = {[0] = "Cloud", "Barret", "Tifa", "Aerith", "Red XIII", "Yuffie", "Cait Sith", "Zack",
     "Sephiroth", "Vincent", "Cid"}
 
+-- The names the game's hit events may use for a party member, read once per character per battle.
+local function name_party_member(battle, entry, id)
+    local key = safe(function() return entry.actor:GetAddress() end) or id
+    if state.party_names[key] then return end
+    state.party_names[key] = true
+    local names = {safe(function() return battle:GetActorName(entry.actor):ToString() end),
+        safe(function() return battle:GetCharaID(entry.actor):ToString() end), name_of(entry.actor)}
+    for i = 1, 3 do
+        dealt:alias(names[i], id)
+        healed:alias(names[i], id)
+    end
+    log(string.format("party member %s: actor %s, chara %s, object %s", id, tostring(names[1]), tostring(names[2]),
+        tostring(names[3])))
+end
+
 local function track_party(battle, party, now)
     local menu = cdo(MENU_API)
     local seen = {}
     for _, entry in ipairs(party_members(party)) do
         local id = PLAYER_NAMES[entry.kind] or name_of(entry.actor)
         seen[id] = true
+        name_party_member(battle, entry, id)
+        healed:track(id)
         local cur = hp(battle, entry.actor)
         if cur then
             local known = state.party[id]
             if known then
                 if cur < known then meters:add("taken", known - cur, now, id)
-                elseif cur > known then meters:add("heal", cur - known, now, id) end
+                elseif cur > known then
+                    meters:add("heal", cur - known, now, id)
+                    healed:change(id, cur - known, now)
+                end
             end
             state.party[id] = cur
         end
@@ -225,15 +311,26 @@ local function track_party(battle, party, now)
             state.mp[id] = mp
         end
     end
-    for id in pairs(state.party) do if not seen[id] then state.party[id] = nil end end
+    for id in pairs(state.party) do
+        if not seen[id] then
+            state.party[id] = nil
+            healed:forget(id)
+        end
+    end
 end
 
 local function json_number(v) return string.format("%.3f", v or 0) end
 local function write_json(snapshot)
     local parts = {}
     for kind, k in pairs(snapshot.kinds) do
-        parts[#parts + 1] = string.format('"%s":{"average":%s,"recent":%s,"total":%s,"biggest":%s}', kind,
-            json_number(k.average), json_number(k.recent), json_number(k.total), json_number(k.biggest))
+        local sources = {}
+        for name, amount in pairs(k.by_source or {}) do
+            sources[#sources + 1] = string.format('"%s":%s', (name:gsub('[%c"\\]', "")), json_number(amount))
+        end
+        table.sort(sources)
+        parts[#parts + 1] = string.format('"%s":{"average":%s,"recent":%s,"total":%s,"biggest":%s,"by_source":{%s}}',
+            kind, json_number(k.average), json_number(k.recent), json_number(k.total), json_number(k.biggest),
+            table.concat(sources, ","))
     end
     local body = string.format('{"elapsed":%s,"time":%d,"meters":{%s}}', json_number(snapshot.elapsed), os.time(), table.concat(parts, ","))
     local path = MOD_DIR .. "meters.json"
@@ -244,11 +341,24 @@ local function write_json(snapshot)
     os.rename(path .. ".tmp", path)
 end
 
+-- Damage and healing by who did it, once the game's hit events have explained some of the total. Without them, damage
+-- has no split and healing keeps its split by who received it.
+local function take_snapshot(now)
+    local snapshot = meters:snapshot(now)
+    local damage, heal = snapshot.kinds.damage, snapshot.kinds.heal
+    local split = dealt:split(damage.total)
+    damage.by_source, damage.attributed = split or {}, split ~= nil
+    split = healed:split(heal.total)
+    if split then heal.by_source, heal.attributed = split, true end
+    return snapshot
+end
+
 -- Every enemy has gone: count what they had left and bring the numbers up to date.
 local function settle_enemies(battle)
     if not state.last_now or state.stand_aside then return end
+    take_hits(state.last_now)
     track_enemies(battle, {}, state.last_now, true)
-    state.last_snapshot = meters:snapshot(state.last_now)
+    state.last_snapshot = take_snapshot(state.last_now)
     state.view = meter_view.build(state.last_snapshot, mode, config)
     if config.write_json then safe(write_json, state.last_snapshot) end
 end
@@ -326,14 +436,16 @@ local function tick()
     if not state.active then begin_battle(#list) end
     local now = now_seconds(list[1])
     state.last_now = now
+    -- Party names first, so this tick's hits know who dealt them.
+    local party = not state.stand_aside and cdo(PARTY_API)
+    if party then track_party(battle, party, now) end
+    take_hits(now)
     track_enemies(battle, list, now)
     if state.stand_aside then
         hide_panel()
         return
     end
-    local party = cdo(PARTY_API)
-    if party then track_party(battle, party, now) end
-    local snapshot = meters:snapshot(now)
+    local snapshot = take_snapshot(now)
     state.last_snapshot = snapshot
     state.view = meter_view.build(snapshot, mode, config)
     draw(list[1])
@@ -368,4 +480,5 @@ LoopAsync(config.tick_ms, function()
 end)
 
 if not overlay_ok then log("overlay disabled: " .. tostring(overlay)) end
+if not native_ok then log("damage by character disabled: " .. tostring(native_hits)) end
 log("loaded")

@@ -23,6 +23,7 @@ local CHARACTERS = {
     {name = "Cid", color = {R = 1.00, G = 0.55, B = 0.10, A = 1}},        -- orange
 }
 local OTHER = {R = 0.55, G = 0.60, B = 0.65, A = 1}
+local UNATTRIBUTED = "Unattributed"   -- attribution.lua's name for damage no hit event explained
 
 function M.format_number(value)
     local text = tostring(math.floor((value or 0) + 0.5))
@@ -35,8 +36,10 @@ function M.format_time(seconds)
     return string.format("%d:%02d", math.floor(whole / 60), whole % 60)
 end
 
--- The line: one section per character with a share of the total. Shares add up to 1. Damage dealt has no line: HP loss on
--- an enemy doesn't say who caused it. Healing is split by who received it, and damage taken by who took it.
+-- The line: one section per character with a share of the total. Shares add up to 1. Damage dealt has a line only when the
+-- game's hit events said who dealt it (see attribution.lua); what they didn't explain is the grey Unattributed section,
+-- last. Healing is split by who did it when the hit events said so, otherwise by who received it. Damage taken is split
+-- by who took it.
 local function segments_of(k)
     local out = {}
     if k.total <= 0 then return out end
@@ -50,9 +53,10 @@ local function segments_of(k)
     end
     local others = {}
     for name in pairs(k.by_source) do
-        if not known[name] then others[#others + 1] = name end
+        if not known[name] and name ~= UNATTRIBUTED then others[#others + 1] = name end
     end
     table.sort(others)
+    if (k.by_source[UNATTRIBUTED] or 0) > 0 then others[#others + 1] = UNATTRIBUTED end
     for _, name in ipairs(others) do
         out[#out + 1] = {name = name, share = k.by_source[name] / k.total, color = OTHER}
     end
@@ -72,9 +76,17 @@ function M.build(snapshot, mode, config)
         stats[#stats + 1] = {"Healing per MP", mp > 0 and M.format_number(k.total / mp) or "-"}
     end
     stats[#stats + 1] = {"Time", M.format_time(snapshot.elapsed)}
-    local show_line = meter.kind ~= "damage"
+    local show_line = meter.kind ~= "damage" or k.attributed == true
+    local segments = show_line and segments_of(k) or {}
+    -- Each character also gets a row, in the line's order, so each total can be read: damage and healing by who did it
+    -- (only with the game's hit events), and damage taken by who took it (always; it comes straight from their HP).
+    if meter.kind == "taken" or ((meter.kind == "damage" or meter.kind == "heal") and k.attributed == true) then
+        for _, segment in ipairs(segments) do
+            stats[#stats + 1] = {segment.name, M.format_number(k.by_source[segment.name])}
+        end
+    end
     return {title = meter.title, value = M.format_number(k.average), stats = stats, show_line = show_line,
-        segments = show_line and segments_of(k) or {}}
+        segments = segments}
 end
 
 return M
