@@ -9,8 +9,13 @@ A small panel showing how your fight is going, in any battle. Press **Ctrl+Shift
 | 3rd | **DTPS**: damage taken per second |
 | 4th | Off |
 
-HPS and DTPS also have a coloured line, split by party member: who received the healing, and who took the damage. Each battle
+HPS and DTPS also have a coloured line, split by party member: who received the healing, and who took the damage. DTPS
+also lists each party member on their own row. Each battle
 starts from zero. The last numbers stay on screen for 8 seconds afterwards.
+
+With the optional **Battle Meters Native** mod, DPS and HPS show each party member on their own row, with the line split by who
+dealt the damage and who did the healing. Each character is credited only the HP their hits really took or healed, and anything
+no hit explains (poison, Regen) shows as Unattributed. Battle Meters Native is built for **UE4SS 3.0.1** only.
 
 It only reads the game and draws a panel. It doesn't change damage, HP, MP or anything else, and it doesn't touch your saves.
 
@@ -29,9 +34,12 @@ Needs UE4SS v3 for FF7 Rebirth.
 
 1. Copy the `BattleMeters` folder into `End/Binaries/Win64/ue4ss/Mods/`.
 2. Add `BattleMeters : 1` to `mods.txt` in that folder, above the `Keybinds` line.
+3. Optional, for damage and healing by character on UE4SS 3.0.1: copy the `BattleMetersNative` folder there too, and add
+   `BattleMetersNative : 1` above the `BattleMeters` line. On another UE4SS version, leave it out: Battle Meters works as
+   before, with totals only.
 
-Or, from this repository: `tools/Install-BattleMeters.ps1 -Mode Install -GameRoot "<your game folder>"`. `-Mode Uninstall` and
-`-Mode Status` also exist.
+Or, from this repository: `tools/Install-BattleMeters.ps1 -Mode Install -GameRoot "<your game folder>"`, with `-WithNative` for
+Battle Meters Native (build it first with `native/Build.ps1`). `-Mode Uninstall` and `-Mode Status` also exist.
 
 It starts switched off, so nothing shows until you press the key.
 
@@ -50,6 +58,9 @@ The full list is in the [guide](docs/GUIDE.md#known-limits).
 ## Tests
 
 `python -m pip install lupa`, then `python tests/run_tests.py`.
+
+Battle Meters Native is C++ in `native/`. `native/Build.ps1` builds it against the pinned UE4SS 3.0.1 sources; see
+[native/README.md](native/README.md).
 
 ## Credits
 

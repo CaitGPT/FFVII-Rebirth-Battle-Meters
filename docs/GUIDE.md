@@ -7,6 +7,7 @@ in the game: it only reads HP and MP, and draws the panel.
 
 - FINAL FANTASY VII REBIRTH (PC).
 - [UE4SS v3](https://github.com/UE4SS-RE/RE-UE4SS) set up for FF7 Rebirth.
+- For damage and healing by character: UE4SS **3.0.1**, and the optional Battle Meters Native mod in the same zip.
 
 ## Install
 
@@ -20,7 +21,16 @@ The game folder below is the one that holds `End/`, for example
    BattleMeters : 1
    ```
 
-3. Start the game.
+3. Optional, on UE4SS 3.0.1 only: also copy the `BattleMetersNative` folder into `End\Binaries\Win64\ue4ss\Mods\`, and add
+   this line above `BattleMeters : 1`:
+
+   ```text
+   BattleMetersNative : 1
+   ```
+
+   It's a small C++ mod that passes the game's own hit events to Battle Meters, so DPS and HPS can show who did what. On another
+   UE4SS version, leave it out. Battle Meters then works without it, with totals only on DPS.
+4. Start the game.
 
 ## Use it
 
@@ -54,10 +64,19 @@ The panel hides while the game is paused.
 | Healing per MP (HPS) | Total healing divided by MP spent |
 | Time | How long since the first number was counted, in game time |
 
-### The coloured line
+### The coloured line and the character rows
 
-On HPS and DTPS, a line shows each party member's share of the total: who **received** the healing, and who **took** the damage.
-The bigger the section, the bigger their share.
+A line shows each party member's share of the total, and each member also gets their own row with their total. The bigger the
+section, the bigger their share.
+
+| Meter | Split by | Needs Battle Meters Native |
+| --- | --- | --- |
+| DPS | Who **dealt** the damage | Yes. Without it, DPS shows the total only |
+| HPS | Who **did** the healing | Yes. Without it, the line shows who **received** the healing, and there are no rows |
+| DTPS | Who **took** the damage | No |
+
+Each character is credited only the HP their hits really took or healed, so a killing blow's overkill and overhealing don't count.
+Anything no hit explains, such as poison or Regen, shows as a grey **Unattributed** section and row. A potion counts for whoever used it.
 
 | Character | Colour |
 | --- | --- |
@@ -73,8 +92,7 @@ The bigger the section, the bigger their share.
 | Vincent | Dark red |
 | Cid | Orange |
 
-DPS has no line. The game doesn't tell a mod who dealt a hit, and we'd rather show nothing than a guess. HPS shows who received
-healing, not who cast it, for the same reason.
+Without Battle Meters Native we'd rather show nothing than a guess: in this game's UE4SS, a Lua mod can't see who dealt a hit.
 
 ## Settings
 
@@ -87,6 +105,7 @@ Edit `BattleMeters\Scripts\config.lua`, then restart the game:
 | `linger_seconds` | 8 | How long the last numbers stay after a battle |
 | `rolling_window_seconds` | 5 | The window for the "Last 5 seconds" line |
 | `write_json` | `true` | Also writes `meters.json` next to the mod, useful for stream overlays |
+| `damage_by_character` | `true` | Splits DPS and HPS by character when Battle Meters Native is installed |
 
 ## Known limits
 
@@ -116,9 +135,12 @@ Edit `BattleMeters\Scripts\config.lua`, then restart the game:
 
 - **Nothing shows:** it starts off, so press Ctrl+Shift+D. Then check that `BattleMeters : 1` is in `mods.txt`, and look for
   `[BattleMeters] loaded` in `ue4ss\UE4SS.log`.
+- **DPS has no character rows:** at the first battle, `UE4SS.log` says either `hit events: Battle Meters Native is hooked` or why
+  not. "Not installed" means the `BattleMetersNative` folder or its `mods.txt` line is missing.
 - **The key does nothing:** the game window needs focus. Pressing the three keys together can briefly make Cloud move, since D is also
   a movement key.
 
 ## Uninstall
 
-Delete `End\Binaries\Win64\ue4ss\Mods\BattleMeters` and remove its line from `mods.txt`. Your saves aren't touched.
+Delete `End\Binaries\Win64\ue4ss\Mods\BattleMeters` (and `BattleMetersNative`, if installed) and remove their lines from
+`mods.txt`. Your saves aren't touched.

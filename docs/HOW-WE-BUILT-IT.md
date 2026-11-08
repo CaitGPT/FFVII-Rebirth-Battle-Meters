@@ -50,6 +50,8 @@ The fallback was to credit whoever was using an ability at that moment. But when
 would be a guess presented as a measurement. The owner's rule was simple: if it can't be reliably accurate, scrap it. So damage has no line.
 Damage taken and healing received are measured character by character, so those keep theirs.
 
+Version 1.1.0 came back to this, and found a way that is accurate. That's the last step below.
+
 ## Step 4: the numbers had to be exact
 
 A meter is only worth anything if it's right, and field fights give you a way to check it. Two Elphadunks with 1,179 HP each should add up to
@@ -104,11 +106,43 @@ crash since the day before. The evidence was only circumstantial, but the scan h
 Later, while we were recording the final fights, one load never finished. The game was still running, with the spinner turning, and the AI's script carried on pressing keys without noticing that the load had failed. The owner spotted it. We've seen the same hang
 in this game before this mod existed, and we still don't know the cause. After a restart, the same save loaded in thirty seconds. The script now checks each load before it does anything else.
 
+## Step 9 (1.1.0): who did the damage, for real
+
+A player asked for damage by character, so we tried again, with the same rule: reliably accurate, or not at all.
+
+**Why the first hook failed.** The game's damage events aren't ordinary functions. They're events that each battle scene's Blueprint
+fills in, so a hook on the game's own declaration never runs. The AI read the game's class list, found the scene Blueprint that really
+handles each hit, and hooked that instead. It ran a fight. Nothing came through.
+
+**A probe, to be sure.** So it built a small probe that hooked fifteen of these Blueprint events at once, including some that run all the
+time. Three minutes of combat, and not one call. That settled it: in this game's version of the modding tool, Lua hooks on Blueprint
+events never fire at all. The game was almost certainly sending the event. We just couldn't hear it from Lua.
+
+**Going native.** Every one of those events still passes through one engine function that the modding tool watches for everyone. So the AI
+wrote a second probe, this time in C++, that listens there and logs any call to the damage event. Matching costs one number comparison per
+call. In a real fight, the event arrived on every hit, five hundred and five of them, each with the damage, who dealt it and who took it.
+The probe cost under half a microsecond per engine call.
+
+**Checking the numbers.** The probe's damage taken matched Battle Meters' exactly: 1,139 both ways. Damage dealt didn't: 5,245 against
+3,636. The difference was overkill. Tifa's Limit Break hit the last enemy for 1,592 when it only had a few hundred HP left, and the event
+reports the full hit. So each hit is matched to HP an enemy actually lost, in the same fifth of a second or within one second, and nobody
+is credited more than really changed. Anything no hit explains, such as poison, shows as Unattributed. Healing works the same way, matched
+to HP a party member actually gained, so overhealing doesn't count.
+
+**The trade-off.** A C++ mod is built for one exact version of the modding tool, 3.0.1. On another version it might not load, or worse.
+So it's a separate, optional mod, Battle Meters Native. Without it, Battle Meters works exactly as before. The owner chose this route,
+and a Lua-only way is a separate issue for later.
+
+**The result.** In every test fight, the rows added up exactly to the total, with nothing unattributed: 4,444 damage as 3,268 for Tifa,
+813 for Cloud and 363 for Aerith, and 1,573 healing as 621, 602 and 350. Partway through, the owner pointed out that players would ask why
+damage taken had a line but no rows, so DTPS got its rows too. It needs no hit events, because it comes straight from each member's HP.
+
 ## What we found the hard way
 
 - **Screen first, theory second.** Several wrong turns ended the moment someone actually looked at the screen.
 - **Check progress, not just outcomes.** Forty identical retries told us nothing.
 - **Test the whole path.** Offline tests passed for First Strike, while the real button binding was missing. Only a live run found it.
+- **A hook that registers isn't a hook that fires.** Count the calls before building on it, and build a probe when the count is zero.
 - **Human eyes still matter.** The owner found the panel size, the ledge, the unfinished scene and the tips. Every one of those is a gap the agent can be taught to close.
 
 ## Test results
@@ -120,11 +154,15 @@ in this game before this mod existed, and we still don't know the cause. After a
 | Stepping through the meters mid-fight | Total stays exact |
 | Training Dummy course | Only that mod's panel shows |
 | Install and uninstall | Clean |
+| 1.1.0: damage by character, Levrikon pack | 4,444 split exactly, nothing unattributed |
+| 1.1.0: healing by character, Elphadunk group | 1,573 split exactly |
+| 1.1.0: damage taken rows, Orc pack | 149 split exactly |
+| 1.1.0: without Battle Meters Native | Totals only, as in 1.0.0, no errors |
 
 ## Known limits
 
 Numbers are read five times a second, so hits landing together count as one for the biggest hit. Everything an enemy loses counts as damage, whatever caused it. Boss fights haven't been tested.
-Healing shows who received it, not who cast it. Any rise in HP counts as healing, including potions, Regen, HP Absorb and abilities that heal without MP, while overhealing adds nothing. MP spent is every MP the party spends, on any spell, so healing per MP
+Damage and healing by character need Battle Meters Native, which is built for UE4SS 3.0.1 only. Without it, healing shows who received it. Any rise in HP counts as healing, including potions, Regen, HP Absorb and abilities that heal without MP, while overhealing adds nothing. MP spent is every MP the party spends, on any spell, so healing per MP
 only shows true healing efficiency if healing is all you spend MP on. And damage and healing on the same character within the same fifth of a second cancel out, so both can read slightly low in busy moments. The full list is in the reference guide.
 
 ## Build on this

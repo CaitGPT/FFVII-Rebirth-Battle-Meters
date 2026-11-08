@@ -82,16 +82,75 @@ The Gameplay rows live in `UEndMainOptionsMenu._OptionItems`, a `TMap`. This UE4
 and aborts the whole chunk, even inside `pcall`, so Lua can't read or change it. Changing the widget's asset needs tooling we don't have
 for this game: `retoc` fails on its container headers. Each row is also tied to a native `EOptionCategory`.
 
-## Why there's no breakdown by who dealt it
+## Damage and healing by character (Battle Meters Native)
 
-Nothing we could reach in Lua says who caused an HP change:
+Requested in [issue 1](https://github.com/CaitGPT/FFVII-Rebirth-Battle-Meters/issues/1). The game reports every hit and heal through
+the battle scene's `OnTakeDamage(Damage, CauserCharaName, DamagedCharaName, ..., bHeal, ...)`, a `BlueprintImplementableEvent` that
+`btsc_base` and several area scenes override. A Lua hook on it never fires in this game's UE4SS 3.0.1 (see the tests below), so a
+small C++ mod, **Battle Meters Native** (`native/`), reads it instead:
 
-- `OnTakeDamageInvoke` carries the attacker, but only some enemy AI classes have it, and a hook on one registered and never fired while that
-  enemy lost 830 HP.
-- `EndBattleSceneBlueprint:OnTakeDamage` didn't fire either.
-- `GetCurrentAbilityID` could only share a hit equally between characters acting at the same moment, which is a guess.
+- at load, never during play, it registers a `ProcessEvent` pre-callback, and looks up `OnTakeDamage`'s name index.
+- per call, it compares the called function's name index with that one: one integer compare. A match has `Damage`,
+  `CauserCharaName`, `DamagedCharaName` and `bHeal` read at the offsets the game's own reflection gives, after checking each one's
+  name and type. A function whose parameters don't fit is skipped.
+- it queues the hit (2,048 at most, oldest dropped first), and registers `BattleMetersNativeHit()` and `BattleMetersNativeStatus()`
+  into Battle Meters' Lua state before its `main.lua` runs. `native_hits.lua` takes the queue on each tick.
 
-So damage has no split, and healing is split by who received it. Damage taken is split by who took it. Those are measured per character.
+It's built against the UE4SS 3.0.1 (`c0a8d4c`) headers and import library. On another UE4SS build, Windows won't load it if an
+import is missing, or it finds no name lookup and hooks nothing. Either way Battle Meters falls back to totals. A build whose
+exports match but whose internals differ could still crash, which is why it's a separate, optional mod.
+
+`attribution.lua` matches each hit to an HP change Battle Meters already measured, first in the same tick, then within 1 second.
+Damage is matched to HP an enemy lost; a heal to HP a party member gained. That means:
+
+- the totals are unchanged: still the HP lost and gained.
+- no one is credited more than really changed, so overkill and overhealing don't count.
+- hits by anyone outside the party (summons, enemies) use up the change they explain, but aren't credited.
+- change no hit explains, such as poison or Regen, shows as grey **Unattributed**.
+
+Party members are matched by the names `EndBattleAPI:GetActorName` and `GetCharaID` give for each one. Enemies are matched by
+`GetActorName`. Hits on the party are damage taken, which is already split by who took it. If no hit matches during a battle, DPS
+shows the total only and HPS keeps its line by who received the healing, as in 1.0.0.
+
+Each battle's log lines, `damage by character: split [...]` and `healing by character: split [...]`, give the split, hits matched,
+hits on unknown targets and unknown causers.
+
+### What the tests found
+
+**First live test, 2026-11-08:** one field fight, Cloud, Aerith and Tifa against Mandragoras and Kalm Fangs, 191 s. The hook went on
+`/Game/BluePrint/BattleScene/Common/btsc_base.btsc_base_C:OnTakeDamage` and received nothing: 0 hits matched and 0 on unknown targets,
+against 5,124 damage. Any event with damage is counted in one of those, whatever its names, so the hook saw no hits. The hook caused
+no problems, and the panel fell back to the total as designed. The party's actor names are `Cloud`, `Aerith` and `Tifa`, with chara
+IDs `PC0000_00`, `PC0003_00` and `PC0002_00`.
+
+**Probe run, 2026-11-08** (`tools/probe`): one field fight, 2 Mu and a Levrikon. The fight has exactly one scene actor,
+`btsc_base_C`, so the first test hooked the right class. The probe hooked 15 Blueprint overrides: 4 scene events and 11 enemy AI
+events, including `OnActionInvoke`, `OnProwlInvoke` and `OnAITimerInvoke`, which run all the time. None of them was called in about
+3 minutes of combat. **Blueprint-event hooks registered during play don't fire in this game's UE4SS 3.0.1**, so the game may well
+call `OnTakeDamage` and we can't see it. Damage by character needs another route, so the split stays off in practice and the panel
+shows the total. Routes still open: a hook on a native (`/Script/`) function that runs per hit, or hooks registered before the
+Blueprint classes load.
+
+**Native probe, 2026-11-08** (`tools/native-probe`): a UE4SS C++ mod with a `ProcessEvent` pre-callback registered at load. One
+field fight, 162 s, Cloud, Aerith and Tifa against 2 Mu and a Levrikon. **The scene's `OnTakeDamage` reached the callback on every
+hit**: 505 calls, each with `Damage`, `CauserCharaName`, `DamagedCharaName`, `AbilityId` and `bHeal`. The names are the same ones
+`GetActorName` gives (`Tifa`, `mobgrasa_Mu_Rare_000@Grassland_mob_23`).
+
+| | Probe (raw `Damage`) | Battle Meters (HP change) |
+| --- | --- | --- |
+| Damage taken by the party | 1,139 | 1,139 |
+| Damage dealt by the party | 5,245 (Tifa 3,839, Cloud 790, Aerith 616) | 3,636 |
+| Healing | 6,762 | 1,343 |
+
+`Damage` is the hit's value before the target's HP runs out: the gap in damage dealt is overkill on killing blows (Tifa's Limit Break
+hit the last Mu for 1,592, and the meter's biggest HP loss was 521). Healing includes overheal. Capping each hit by the HP actually lost,
+as `attribution.lua` already does, handles both. The callback cost a mean 0.39 µs per `ProcessEvent` (1.14 million in about 8 minutes,
+443 ms in total, 604 µs at most, including the log writes). No harness or game problems.
+
+So the split needs native code: Lua can't receive these events in this UE4SS build. We chose an optional C++ mod tied to UE4SS 3.0.1
+(Battle Meters Native, above). Lua-only routes are a separate issue.
+
+Set `damage_by_character = false` in `config.lua` to turn the split off.
 
 ## What was tested
 
