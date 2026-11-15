@@ -34,17 +34,33 @@ The game folder below is the one that holds `End/`, for example
 
 ## Use it
 
-Press **Ctrl+Shift+D** to step through the meters. It starts switched off.
+Press **Ctrl+Shift+D** to step through the views. It starts switched off.
 
 | Press | Panel |
 | --- | --- |
-| 1st | DPS |
-| 2nd | HPS |
-| 3rd | DTPS |
-| 4th | Off |
+| 1st | DPS · Compact |
+| 2nd | DPS · Full |
+| 3rd | HPS · Compact |
+| 4th | HPS · Full |
+| 5th | DTPS · Compact |
+| 6th | DTPS · Full |
+| 7th | All · Grid |
+| 8th | All · Stack |
+| 9th | Off |
 
-The mod remembers your choice next time. Outside a battle, the panel shows for a few seconds after you press the key, so you can
-see what you picked.
+- **Compact:** one meter. Its numbers on the top line, then a bar per character.
+- **Full:** one meter. A bar per character, then each number on its own row.
+- **All · Grid:** damage, healing and damage taken side by side, a row per character, the numbers underneath.
+- **All · Stack:** all three meters one under the other, each like the compact view.
+
+After each press, the panel shows the view's name for 2 seconds, then its numbers. The mod remembers your choice next time. Outside
+a battle, the panel shows briefly after you press the key, so you can see what you picked.
+
+A meter shows once it has something to count: HPS stays hidden until someone heals, and the grid and the stack leave out healing
+until then.
+
+The 1.1.0 panel is still there: set `layout = "classic"` in `config.lua` (see [Settings](#settings)). The key then steps through DPS,
+HPS, DTPS and off.
 
 Each battle starts from zero. When it ends, the last numbers stay on screen for 8 seconds. Stepping through the meters during a
 fight doesn't lose its numbers, even past Off. If the meter is already off when a fight starts, that fight isn't measured until you
@@ -56,33 +72,35 @@ The panel hides while the game is paused.
 
 | Line | Meaning |
 | --- | --- |
-| The big number | The average per second, since the first number was counted in this fight |
-| Last 5 seconds | The rate over the last five seconds |
+| Per sec (`/s`) | The average per second, since the first number was counted in this fight |
+| Last 5s | The rate over the last five seconds |
 | Total | Everything counted in this fight |
-| Biggest hit / heal | The biggest single change seen (see the limits below) |
-| MP spent (HPS) | MP used by the party in this fight |
-| Healing per MP (HPS) | Total healing divided by MP spent |
+| Highest (`max`) | The biggest single change seen (see the limits below) |
+| MP spent (HPS · Full) | MP used by the party in this fight |
+| Healing per MP (HPS · Full) | Total healing divided by MP spent |
 | Time | How long since the first number was counted, in game time |
 
-### The coloured line and the character rows
+The compact top line reads, left to right: per second, total, highest, time.
 
-A line shows each party member's share of the total, and each member also gets their own row with their total. The bigger the
-section, the bigger their share.
+### The bars
+
+Each party member gets a bar with their total and their share of it. The longer the bar, the bigger their share. Characters keep
+their party order for the whole battle, so a row doesn't move when someone takes the lead or you switch characters.
 
 | Meter | Split by | Needs Battle Meters Native |
 | --- | --- | --- |
 | DPS | Who **dealt** the damage | Yes. Without it, DPS shows the total only |
-| HPS | Who **did** the healing | Yes. Without it, the line shows who **received** the healing, and there are no rows |
+| HPS | Who **did** the healing | Yes. Without it, HPS shows the total only |
 | DTPS | Who **took** the damage | No |
 
 Each character is credited only the HP their hits really took or healed, so a killing blow's overkill and overhealing don't count.
-Anything no hit explains, such as poison or Regen, shows as a grey **Unattributed** section and row. A potion counts for whoever used it.
+Anything no hit explains, such as poison or Regen, shows as a grey **Unattributed** bar, always last. A potion counts for whoever used it.
 
 | Character | Colour |
 | --- | --- |
 | Cloud | Yellow |
 | Barret | Green |
-| Tifa | Black |
+| Tifa | Tan (black on the classic panel) |
 | Aerith | Pink |
 | Red XIII | Red |
 | Yuffie | Blue |
@@ -101,6 +119,8 @@ Edit `BattleMeters\Scripts\config.lua`, then restart the game:
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `overlay_x`, `overlay_y` | 48, 240 | Where the panel sits, in 1920x1080 units from the top left |
+| `layout` | `"compact"` | `"classic"` brings back the 1.1.0 panel and its DPS, HPS, DTPS and off cycle |
+| `scale` | 1 | Size of the compact panel: 0.8 smaller, 1.25 bigger |
 | `cycle_key` | `D` | The key pressed with Ctrl+Shift |
 | `linger_seconds` | 8 | How long the last numbers stay after a battle |
 | `rolling_window_seconds` | 5 | The window for the "Last 5 seconds" line |
@@ -135,7 +155,7 @@ Edit `BattleMeters\Scripts\config.lua`, then restart the game:
 
 - **Nothing shows:** it starts off, so press Ctrl+Shift+D. Then check that `BattleMeters : 1` is in `mods.txt`, and look for
   `[BattleMeters] loaded` in `ue4ss\UE4SS.log`.
-- **DPS has no character rows:** at the first battle, `UE4SS.log` says either `hit events: Battle Meters Native is hooked` or why
+- **DPS has no bars per character:** at the first battle, `UE4SS.log` says either `hit events: Battle Meters Native is hooked` or why
   not. "Not installed" means the `BattleMetersNative` folder or its `mods.txt` line is missing.
 - **The key does nothing:** the game window needs focus. Pressing the three keys together can briefly make Cloud move, since D is also
   a movement key.

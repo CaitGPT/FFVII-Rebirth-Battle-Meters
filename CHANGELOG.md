@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- A compact panel, now the default: a bar per character, its length that character's share of the total. Ctrl+Shift+D steps
+  through Off, DPS · Compact, DPS · Full, HPS · Compact, HPS · Full, DTPS · Compact, DTPS · Full, All · Grid (all three meters
+  side by side) and All · Stack (one under the other).
+- Each press shows the view's name for 2 seconds.
+- A meter shows once it has something to count; the grid and the stack leave out healing until someone heals.
+- Characters keep their party order for the whole battle, with Unattributed last.
+- Tifa's colour is tan in the compact panel, so it shows on the dark background.
+- `layout = "classic"` in `config.lua` brings back the 1.1.0 panel. `scale` resizes the compact one.
+- A meter chosen in 1.1.0 opens as its full view, so updating keeps the panel on.
+
 ## 1.1.0 (2026-11-08)
 
 - Damage and healing by character, with the optional Battle Meters Native mod (UE4SS 3.0.1 only). DPS and HPS get a coloured
