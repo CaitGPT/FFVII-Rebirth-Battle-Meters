@@ -8,6 +8,7 @@ local config = require("config")
 local Meters = require("meters")
 local Settings = require("settings")
 local meter_view = require("meter_view")
+local compact_view = require("compact_view")
 local Attribution = require("attribution")
 local native_ok, native_hits = pcall(require, "native_hits")
 local overlay_ok, overlay = pcall(require, "overlay")
@@ -30,8 +31,16 @@ local SETTINGS_PATH = MOD_DIR .. "settings.txt"
 local meters = Meters.new(config.rolling_window_seconds)
 -- Who dealt the damage (targets: enemies) and who did the healing (targets: party members).
 local dealt, healed = Attribution.new(), Attribution.new()
-local mode = Settings.load(SETTINGS_PATH)
+local LAYOUT = config.layout == "classic" and "classic" or "compact"
+local mode = Settings.load(SETTINGS_PATH, LAYOUT)
 local state = {active = false, stand_aside = false, enemies = {}, party = {}, logged = {}, last_json = 0, view = nil}
+
+-- What the panel shows for this snapshot in the chosen layout; nil when the meter is off. Just after a key press the
+-- compact panel shows even with nothing counted yet, so the key visibly did something.
+local function build_view(snapshot)
+    if LAYOUT == "classic" then return meter_view.build(snapshot, mode, config) end
+    return compact_view.build(snapshot, mode, config, state.announce_until ~= nil and os.time() < state.announce_until)
+end
 
 local function log(message) print(TAG .. message .. "\n") end
 local function log_once(key, message)
@@ -187,6 +196,9 @@ local function begin_battle(count)
     state.active, state.stand_aside, state.enemies, state.party = true, false, {}, {}
     state.over_since, state.linger_until, state.mp = nil, nil, {}
     state.party_names = {}
+    -- The party's battle slots in the order first seen, kept for the whole battle: the panel lists characters in this
+    -- order, so switching who you control never moves a row.
+    state.party_order, state.party_slot = {}, {}
     log(string.format("battle started: %d enemies", count))
     if config.damage_by_character and native_ok and native_hits then
         state.native = native_hits.status()
@@ -291,6 +303,10 @@ local function track_party(battle, party, now)
     for _, entry in ipairs(party_members(party)) do
         local id = PLAYER_NAMES[entry.kind] or name_of(entry.actor)
         seen[id] = true
+        if not state.party_slot[id] then
+            state.party_order[#state.party_order + 1] = id
+            state.party_slot[id] = #state.party_order
+        end
         name_party_member(battle, entry, id)
         healed:track(id)
         local cur = hp(battle, entry.actor)
@@ -345,6 +361,7 @@ end
 -- has no split and healing keeps its split by who received it.
 local function take_snapshot(now)
     local snapshot = meters:snapshot(now)
+    snapshot.party_order = state.party_order
     local damage, heal = snapshot.kinds.damage, snapshot.kinds.heal
     local split = dealt:split(damage.total)
     damage.by_source, damage.attributed = split or {}, split ~= nil
@@ -359,7 +376,7 @@ local function settle_enemies(battle)
     take_hits(state.last_now)
     track_enemies(battle, {}, state.last_now, true)
     state.last_snapshot = take_snapshot(state.last_now)
-    state.view = meter_view.build(state.last_snapshot, mode, config)
+    state.view = build_view(state.last_snapshot)
     if config.write_json then safe(write_json, state.last_snapshot) end
 end
 
@@ -381,16 +398,30 @@ local function apply_key_presses()
     state.settings_changed = false
     Settings.save(SETTINGS_PATH, mode)
     log("meter: " .. mode)
-    if mode == "off" then
+    if mode == "off" and LAYOUT == "classic" then
         -- A fight already under way keeps counting, so stepping past off doesn't lose its numbers.
         state.view = nil
         hide_panel()
     else
-        -- Outside a battle the panel shows briefly, so the key visibly did something.
+        -- The compact panel names the view it switched to for a moment ("Off" included, before it goes). Outside a
+        -- battle the panel shows briefly, so the key visibly did something.
+        state.announce_until = os.time() + 2
         local snapshot = state.last_snapshot or meters:snapshot(0)
-        state.view = meter_view.build(snapshot, mode, config)
-        if not state.active then state.linger_until = os.time() + config.linger_seconds end
+        state.view = build_view(snapshot)
+        if not state.active then
+            state.linger_until = mode == "off" and state.announce_until or os.time() + config.linger_seconds
+        end
     end
+end
+
+-- Once the name has shown, outside a battle, the panel goes back to the numbers, or away if it has none. In a battle,
+-- every tick redraws it anyway.
+local function end_announcement()
+    if not state.announce_until or os.time() < state.announce_until then return end
+    state.announce_until = nil
+    if state.active then return end
+    state.view = mode ~= "off" and build_view(state.last_snapshot or meters:snapshot(0)) or nil
+    if not state.view then hide_panel() end
 end
 
 -- Battle functions are called only once a save has been loaded ("armed"): calling them from boot and the title screen
@@ -399,6 +430,7 @@ end
 local DISARM_SECONDS = 120
 local function tick()
     apply_key_presses()
+    end_announcement()
     local pawn = gameplay_pawn()
     if pawn then
         state.armed, state.pawnless_since = true, nil
@@ -447,7 +479,7 @@ local function tick()
     end
     local snapshot = take_snapshot(now)
     state.last_snapshot = snapshot
-    state.view = meter_view.build(snapshot, mode, config)
+    state.view = build_view(snapshot)
     draw(list[1])
     if config.write_json and now - state.last_json >= 0.5 then
         state.last_json = now
@@ -456,7 +488,7 @@ local function tick()
 end
 
 RegisterKeyBind(Key[config.cycle_key], {ModifierKey.CONTROL, ModifierKey.SHIFT}, function()
-    mode = Settings.next(mode)
+    mode = Settings.next(mode, LAYOUT)
     state.settings_changed = true
 end)
 

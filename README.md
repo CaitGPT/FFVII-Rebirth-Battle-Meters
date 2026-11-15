@@ -1,20 +1,22 @@
 # Battle Meters — FF7 Rebirth combat meters
 
-A small panel showing how your fight is going, in any battle. Press **Ctrl+Shift+D** to step through:
+A small panel showing how your fight is going, in any battle, with a bar per party member. Press **Ctrl+Shift+D** to step
+through:
 
 | Press | Shows |
 | --- | --- |
-| 1st | **DPS**: damage per second |
-| 2nd | **HPS**: healing per second, MP spent and healing per MP |
-| 3rd | **DTPS**: damage taken per second |
-| 4th | Off |
+| 1st, 2nd | **DPS**: damage per second, compact then full |
+| 3rd, 4th | **HPS**: healing per second, compact then full (with MP spent and healing per MP) |
+| 5th, 6th | **DTPS**: damage taken per second, compact then full |
+| 7th | **All · Grid**: all three side by side |
+| 8th | **All · Stack**: all three one under the other |
+| 9th | Off |
 
-HPS and DTPS also have a coloured line, split by party member: who received the healing, and who took the damage. DTPS
-also lists each party member on their own row. Each battle
-starts from zero. The last numbers stay on screen for 8 seconds afterwards.
+Compact puts a meter's numbers on one line above the bars; full lists them underneath. DTPS splits by who took the damage. Each
+battle starts from zero. The last numbers stay on screen for 8 seconds afterwards. `layout = "classic"` in `config.lua` brings
+back the 1.1.0 panel.
 
-With the optional **Battle Meters Native** mod, DPS and HPS show each party member on their own row, with the line split by who
-dealt the damage and who did the healing. Each character is credited only the HP their hits really took or healed, and anything
+With the optional **Battle Meters Native** mod, DPS and HPS also split by who dealt the damage and who did the healing. Each character is credited only the HP their hits really took or healed, and anything
 no hit explains (poison, Regen) shows as Unattributed. Battle Meters Native is built for **UE4SS 3.0.1** only.
 
 It only reads the game and draws a panel. It doesn't change damage, HP, MP or anything else, and it doesn't touch your saves.

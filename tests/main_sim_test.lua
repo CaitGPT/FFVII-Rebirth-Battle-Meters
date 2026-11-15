@@ -33,6 +33,7 @@ end
 local cfg = {}
 for k, v in pairs(require("config")) do cfg[k] = v end
 cfg.write_json, cfg.debug = false, false
+cfg.layout = "classic"   -- the checks below read the classic panel's rows; compact_view_test.lua covers the compact one
 package.loaded.config = cfg
 local next_mode = "dps"
 package.loaded.settings = {load = function() return "dps" end, save = function() end,

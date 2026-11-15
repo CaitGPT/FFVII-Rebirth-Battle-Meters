@@ -1,7 +1,8 @@
 -- The on-screen meter: plain UMG widgets built at runtime, so the mod needs no Blueprint assets, drawn with the
 -- game's own HUD sprites and colours so it sits with the party panels. Text uses the engine's Roboto: the game's
 -- EndTextBlock and EndImage draw nothing when created at runtime, and its bitmap fonts only work with them.
--- Draws a plain view table (see meter_view.lua). Called on the game thread.
+-- Draws a plain view table: the classic panel (see meter_view.lua) or a compact layout (see compact_view.lua), which is
+-- a list of rectangles and text boxes. Called on the game thread.
 local M = {}
 
 local WIDTH, PAD = 300, 16
@@ -40,7 +41,7 @@ local function new_name(self, prefix)
     return FName("BattleMeters" .. prefix .. self.count)
 end
 
-local function add_image(self, resource, margin, tint)
+local function add_image(self, resource, margin, tint, parent)
     local image = StaticConstructObject(self.image_class, self.tree, new_name(self, "Image"))
     if resource then
         image:SetBrushResourceObject(resource)
@@ -48,22 +49,35 @@ local function add_image(self, resource, margin, tint)
         image.Brush.Margin = margin
     end
     image:SetColorAndOpacity(tint or WHITE)
-    local slot = self.canvas:AddChildToCanvas(image)
+    local slot = (parent or self.canvas):AddChildToCanvas(image)
     slot:SetAutoSize(false)
     return {widget = image, slot = slot}
 end
 
-local function add_text(self, size, color, justify)
+local function add_text(self, size, color, justify, parent, shadow, shadow_color)
     local text = StaticConstructObject(self.text_class, self.tree, new_name(self, "Text"))
     text.Font.Size = size
     text.Font.TypefaceFontName = FName("Regular")
     text:SetColorAndOpacity({SpecifiedColor = color, ColorUseRule = 0})
-    text:SetShadowOffset({X = 2, Y = 1})
-    text:SetShadowColorAndOpacity(SHADOW)
+    text:SetShadowOffset(shadow or {X = 2, Y = 1})
+    text:SetShadowColorAndOpacity(shadow_color or SHADOW)
     if justify then text:SetJustification(justify) end
-    local slot = self.canvas:AddChildToCanvas(text)
+    local slot = (parent or self.canvas):AddChildToCanvas(text)
     slot:SetAutoSize(false)
-    return {widget = text, slot = slot, shown = nil}
+    return {widget = text, slot = slot, shown = nil, color = color}
+end
+
+-- A full-screen canvas inside the panel's. The compact layouts make widgets as they need them, and a canvas draws its
+-- children in the order they were added, so bars go on one layer and text on the one above, whatever order they come in.
+local function add_layer(self)
+    local layer = safe(StaticConstructObject, find("/Script/UMG.CanvasPanel"), self.tree, new_name(self, "Layer"))
+    if not valid(layer) then return nil end
+    local slot = safe(function() return self.canvas:AddChildToCanvas(layer) end)
+    if not slot then return nil end
+    slot:SetAutoSize(false)
+    slot:SetPosition({X = 0, Y = 0})
+    slot:SetSize({X = 4000, Y = 4000})
+    return layer
 end
 
 local function create(config, world_object)
@@ -86,6 +100,16 @@ local function create(config, world_object)
 
     -- Everything is made up front; what isn't needed is collapsed. Drawn in this order, back to front.
     self.panel = add_image(self, sprite("U_Status_Base_01"), {Left = 0, Top = 0.3, Right = 0, Bottom = 0.3}, {R = 1, G = 1, B = 1, A = 0.95})
+    if config.layout ~= "classic" then
+        -- Compact: the panel, then a layer of bars and a layer of text, filled as the layouts need them.
+        self.compact = true
+        self.rect_layer = add_layer(self) or canvas
+        self.text_layer = add_layer(self) or canvas
+        self.rects, self.text_pools, self.pool_order = {}, {}, {}
+        widget:AddToViewport(1000)
+        widget:SetVisibility(VISIBLE)
+        return self
+    end
     self.edge = add_image(self, nil, nil, LINE_EDGE)
     self.back = add_image(self, nil, nil, GAUGE_BACK)
     for i = 1, SECTIONS do self.sections[i] = add_image(self, nil, nil, WHITE) end
@@ -176,6 +200,58 @@ local function draw(self, view)
     place(self, self.panel, 0, 0, WIDTH, y + (view.show_line and LINE_HEIGHT + 14 or 4))
 end
 
+local function set_text_color(item, color)
+    if item.color ~= color then
+        item.widget:SetColorAndOpacity({SpecifiedColor = color, ColorUseRule = 0})
+        item.color = color
+    end
+end
+
+-- Text widgets are kept per font size and justification, which are set when one is made. Their shadow is darker than
+-- the classic panel's, so white text stays readable on the light bars (Cloud's yellow, Cait Sith's white).
+local COMPACT_SHADOW, COMPACT_SHADOW_OFFSET = {R = 0, G = 0, B = 0, A = 0.95}, {X = 1.5, Y = 1.5}
+local function pooled_text(self, size, justify)
+    local key = size .. ":" .. justify
+    local pool = self.text_pools[key]
+    if not pool then
+        pool = {items = {}, used = 0}
+        self.text_pools[key] = pool
+        self.pool_order[#self.pool_order + 1] = pool
+    end
+    pool.used = pool.used + 1
+    local item = pool.items[pool.used]
+    if not item then
+        item = add_text(self, size, WHITE, justify ~= 0 and justify or nil, self.text_layer, COMPACT_SHADOW_OFFSET,
+            COMPACT_SHADOW)
+        pool.items[pool.used] = item
+    end
+    return item
+end
+
+-- A compact layout: the panel sized to it, then its rectangles and text, reusing widgets from the last draw.
+local function draw_compact(self, view)
+    place(self, self.panel, 0, 0, view.width, view.height)
+    for i, r in ipairs(view.rects) do
+        local item = self.rects[i]
+        if not item then
+            item = add_image(self, nil, nil, WHITE, self.rect_layer)
+            self.rects[i] = item
+        end
+        set_color(item, r.color)
+        place(self, item, r.x, r.y, r.w, r.h)
+    end
+    for i = #view.rects + 1, #self.rects do collapse(self.rects[i]) end
+    for _, pool in ipairs(self.pool_order) do pool.used = 0 end
+    for _, t in ipairs(view.texts) do
+        local item = pooled_text(self, t.size, t.justify)
+        set_text_color(item, t.color)
+        set_text(self, item, t.text, t.x, t.y, t.w, t.h)
+    end
+    for _, pool in ipairs(self.pool_order) do
+        for i = pool.used + 1, #pool.items do collapse(pool.items[i]) end
+    end
+end
+
 function M.show(view, config, world_object)
     -- A level change takes the panel off the screen without destroying it.
     if not (ui and valid(ui.widget) and safe(function() return ui.widget:IsInViewport() end) == true) then
@@ -192,7 +268,11 @@ function M.show(view, config, world_object)
         ui.widget:SetVisibility(VISIBLE)
         ui.hidden = false
     end
-    draw(ui, view)
+    if view.compact and ui.compact then
+        draw_compact(ui, view)
+    elseif not view.compact and not ui.compact then
+        draw(ui, view)
+    end
 end
 
 function M.hide()

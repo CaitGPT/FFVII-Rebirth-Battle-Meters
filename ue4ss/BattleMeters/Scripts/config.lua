@@ -18,7 +18,15 @@ return {
     overlay_x = 48,
     overlay_y = 240,
 
-    -- Pressed with Ctrl+Shift, this steps through DPS, HPS, DTPS and off.
+    -- The panel. "compact": a bar per character, and Ctrl+Shift+D steps through off, DPS, HPS and DTPS (each compact,
+    -- with its stats on one line, then full, with them listed), then all three side by side and one under the other.
+    -- "classic": the 1.1.0 panel, and the key steps through off, DPS, HPS and DTPS.
+    layout = "compact",
+
+    -- Size of the compact panel: 1 as designed, 0.8 smaller, 1.25 bigger.
+    scale = 1,
+
+    -- Pressed with Ctrl+Shift, this steps through the meters and off.
     cycle_key = "D",
 
     -- Split damage dealt and healing done by character, from the game's own hit events. Needs the optional Battle

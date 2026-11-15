@@ -13,7 +13,8 @@ and draws a UMG panel built at runtime. It writes nothing to the game.
 | `main.lua` | The loop: finds the battle, reads HP and MP, handles the key | Yes |
 | `overlay.lua` | Builds and draws the panel | Yes |
 | `meters.lua` | Totals, rates, the rolling window, the killing-blow rule | No |
-| `meter_view.lua` | What the panel shows, including each character's colour | No |
+| `meter_view.lua` | What the classic panel shows, including each character's colour | No |
+| `compact_view.lua` | The compact layouts, as lists of rectangles and text boxes | No |
 | `settings.lua` | Remembers the chosen meter in `settings.txt` | No |
 | `config.lua` | Settings | No |
 
@@ -67,6 +68,12 @@ between waves doesn't end it. Meters reset at the start of the next battle.
 Plain UMG widgets built at runtime: `Image` with the game's `U_Status_Base_01` sprite, and `TextBlock` in Roboto. The game's own
 `EndTextBlock` and `EndImage` draw nothing when created at runtime. All widgets are made once, and only those that changed are updated,
 since each setter is a reflected call on the game thread.
+
+The compact layouts (`compact_view.lua`) come out as plain lists of rectangles and text boxes. `overlay.lua` draws them on two
+canvas layers inside the panel, bars below and text above, since a canvas draws its children in the order they were added. It
+keeps the widgets between draws, makes more only when a layout needs them, and collapses the rest. `tools/preview/render.py`
+draws the same lists as a web page, to check a layout without starting the game. Rows follow the party's battle slots in the
+order first seen in each battle (`main.lua`), so they don't move mid-fight.
 
 It sits at (48, 240) in 1920x1080 units: below the objective list a Combat Assignment shows in the top left, and above the combat help.
 A level change takes it off the screen without destroying it, so `IsInViewport` decides when to rebuild it.
