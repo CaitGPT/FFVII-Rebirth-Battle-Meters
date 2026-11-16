@@ -70,6 +70,10 @@ Battle Meters Native is C++ in `native/`. `native/Build.ps1` builds it against t
 
 This repository contains no game files.
 
+## Requests
+
+We take requests: changes to this mod, or ideas for new Rebirth mods. Open an issue here, or post on the [Nexus page](https://www.nexusmods.com/finalfantasy7rebirth/mods/2479?tab=posts).
+
 ## Licence
 
 MIT (see `LICENSE`).
