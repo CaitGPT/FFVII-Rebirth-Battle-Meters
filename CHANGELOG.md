@@ -1,11 +1,14 @@
 # Changelog
 
-## 1.2.0 (unreleased)
+## 1.2.0 (2026-11-21)
 
-- Stands aside in Simulator Upgrade's Custom Training course, as it does on Training Dummy's courses: that mod draws its
-  own meters panel there (Battle Meters' and Training Dummy's meters in one). Battle Meters checks for the
-  `meters-active.txt` marker Simulator Upgrade keeps in its mod folder while a course runs, at the battle's start and once a second after it
-  (`SimulatorUpgrade`, or `SimulatorOverhaul` from before that mod's rename).
+For most players this changes nothing yet. It is released ahead of our upcoming Simulator Upgrade mod, as a
+quality-of-life update for anyone who will use both.
+
+- Stands aside in Simulator Upgrade's Custom Training course, as it already does on Training Dummy's courses: that mod
+  shows its own meters panel there (Battle Meters' and Training Dummy's meters in one), so the two panels no longer
+  overlap. Battle Meters looks for the `meters-active.txt` marker Simulator Upgrade keeps in its mod folder while a
+  course runs, at the battle's start and once a second after it. Everywhere else it works exactly as in 1.1.0.
 
 ## 1.1.0 (2026-11-08)
 
