@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0 (unreleased)
+
+- Stands aside in Simulator Overhaul's Custom Training course, as it does on Training Dummy's courses: that mod draws its
+  own meters panel there (Battle Meters' and Training Dummy's meters in one). Battle Meters checks for the
+  `meters-active.txt` marker Simulator Overhaul keeps in its mod folder while a course runs, once per battle start.
+
 ## 1.1.0 (2026-11-08)
 
 - Damage and healing by character, with the optional Battle Meters Native mod (UE4SS 3.0.1 only). DPS and HPS get a coloured

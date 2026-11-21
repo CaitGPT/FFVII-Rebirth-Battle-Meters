@@ -45,7 +45,7 @@ Battle Meters Native (build it first with `native/Build.ps1`). `-Mode Uninstall`
 It starts switched off, so nothing shows until you press the key.
 
 It works alongside [Training Dummy](https://github.com/CaitGPT/FFVII-Rebirth-Training-Dummy): on that mod's courses, only
-its panel shows.
+its panel shows. The same goes for Simulator Overhaul's Custom Training course (from 1.2.0).
 
 ## Known limits
 

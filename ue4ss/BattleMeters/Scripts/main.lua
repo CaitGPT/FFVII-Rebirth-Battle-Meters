@@ -10,6 +10,8 @@ local Settings = require("settings")
 local meter_view = require("meter_view")
 local Attribution = require("attribution")
 local native_ok, native_hits = pcall(require, "native_hits")
+-- Simulator Overhaul's Custom Training draws its own meters: its meters-active.txt marker (sim_overhaul.lua).
+local SimOverhaul = require("sim_overhaul")
 local overlay_ok, overlay = pcall(require, "overlay")
 
 local TAG = "[BattleMeters] "
@@ -26,6 +28,8 @@ local TRAINING_TERRITORY = "terVR_COL30_SUMMON_Gilgamesh_010_BtlTest_Hard"
 local MOD_DIR = package.path:match("([^;]*[\\/]BattleMeters[\\/])[Ss]cripts[\\/]%?%.lua")
     or (debug.getinfo(1, "S").source:match("^@(.*[\\/])[Ss]cripts[\\/]")) or ""
 local SETTINGS_PATH = MOD_DIR .. "settings.txt"
+local SEP = package.config:sub(1, 1)
+local MODS_DIR = MOD_DIR:match("^(.*[\\/])BattleMeters[\\/]$") or ""
 
 local meters = Meters.new(config.rolling_window_seconds)
 -- Who dealt the damage (targets: enemies) and who did the healing (targets: party members).
@@ -188,6 +192,11 @@ local function begin_battle(count)
     state.over_since, state.linger_until, state.mp = nil, nil, {}
     state.party_names = {}
     log(string.format("battle started: %d enemies", count))
+    -- A Custom Training course in Simulator Overhaul: its panel already shows these meters.
+    if SimOverhaul.course_running(MODS_DIR, SimOverhaul.file_exists, SEP) then
+        log("Simulator Overhaul's Custom Training: leaving the panel to that mod")
+        state.stand_aside = true
+    end
     if config.damage_by_character and native_ok and native_hits then
         state.native = native_hits.status()
         log_once("native:" .. state.native, state.native == "ok" and "hit events: Battle Meters Native is hooked"

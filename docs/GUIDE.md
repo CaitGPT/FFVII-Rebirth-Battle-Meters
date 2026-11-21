@@ -129,6 +129,7 @@ Edit `BattleMeters\Scripts\config.lua`, then restart the game:
 ## Other mods
 
 - **Training Dummy:** works alongside it. On its courses, only its panel shows.
+- **Simulator Overhaul:** works alongside it. In its Custom Training course, only that mod's meters panel shows.
 - It replaces no game files, so it shouldn't conflict with other mods. We haven't tested it with mods other than Training Dummy.
 
 ## Troubleshooting
