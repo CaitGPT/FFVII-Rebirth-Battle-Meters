@@ -76,15 +76,16 @@ A level change takes it off the screen without destroying it, so `IsInViewport` 
 Battle Meters checks each new enemy's territory. In `terVR_COL30_SUMMON_Gilgamesh_010_BtlTest_Hard`, the one Training Dummy's courses use,
 it hides its panel for that battle and adds no killing blow.
 
-## Simulator Overhaul
+## Simulator Upgrade
 
-Simulator Overhaul's Custom Training course has its own meters panel, which does what Battle Meters and Training Dummy
-do together. While a course runs that mod keeps a file, `meters-active.txt`, in its folder (`SimulatorOverhaul`, or
-`SimOverhaulMeters` in its development build). At each battle start Battle Meters looks for it (`sim_overhaul.lua`, a
+Simulator Upgrade's Custom Training course has its own meters panel, which does what Battle Meters and Training Dummy
+do together. While a course runs that mod keeps a file, `meters-active.txt`, in its folder (`SimulatorUpgrade`;
+`SimulatorOverhaul` in a build from before it was renamed on 2026-11-21; `SimOverhaulMeters` in its development
+build). At each battle start Battle Meters looks for it (`sim_overhaul.lua`, a
 plain file check, no game calls) and, if it's there, hides its panel for that battle as on Training Dummy's courses.
-Simulator Overhaul removes the file when the course ends and whenever it starts up, so a crash mid-course can't leave
-Battle Meters hidden. An older Battle Meters doesn't know the file; Simulator Overhaul then moves its own panel to the
-right of Battle Meters' instead.
+Simulator Upgrade removes the file when the course ends and whenever it starts up, so a crash mid-course can't leave
+Battle Meters hidden. An older Battle Meters doesn't know the file and still draws its panel there; Simulator Upgrade
+then moves its own panel to the top right of the screen, clear of Battle Meters'.
 
 ## Why there's no Settings menu entry
 
