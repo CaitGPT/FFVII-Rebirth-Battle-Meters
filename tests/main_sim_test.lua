@@ -38,7 +38,7 @@ local next_mode = "dps"
 package.loaded.settings = {load = function() return "dps" end, save = function() end,
     next = function() return next_mode end}
 local shown
-package.loaded.overlay = {show = function(view) shown = view end, hide = function() end}
+package.loaded.overlay = {show = function(view) shown = view end, hide = function() shown = nil end}
 
 local world = {in_battle = false, enemies = {}, party = {}, hp = {}, max = {}}
 local function actor(actor_name, hp)
@@ -196,6 +196,29 @@ local ok, err = pcall(function()
     game_time = 5
     tick()
     assert(shown and shown.show_line == false and #shown.stats == 4, "total only")
+    world.enemies, world.in_battle = {}, false
+    clock = clock + 3
+    tick()
+    tick()
+
+    -- Battle 3: Simulator Upgrade's Custom Training. Its marker appears a few seconds after the battle begins (seen
+    -- 2026-11-21: 4 s), so Battle Meters steps aside then, not only at the battle's start.
+    local sim = package.loaded.sim_overhaul
+    local real_exists, marker = sim.file_exists, false
+    sim.file_exists = function(path) return marker and path:find("SimulatorUpgrade[\\/]meters%-active%.txt$") ~= nil end
+    local zu = actor("EN2200_00_Zuu", 4000)
+    world.enemies, world.in_battle = {zu}, true
+    clock = clock + 1
+    tick()
+    assert(shown ~= nil and not logged("Simulator Upgrade's Custom Training"), "no marker yet: the panel shows")
+    marker = true
+    tick()   -- the same second: not looked for again yet
+    assert(not logged("Simulator Upgrade's Custom Training"), "at most once a second")
+    clock = clock + 4
+    tick()
+    assert(logged("Simulator Upgrade's Custom Training: leaving the panel to that mod") and shown == nil,
+        "stands aside once the marker appears")
+    sim.file_exists = real_exists
 end)
 
 -- Put the real globals and modules back for the other tests.

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0 (2026-11-21)
+
+For most players this changes nothing yet. It is released ahead of our upcoming Simulator Upgrade mod, as a
+quality-of-life update for anyone who will use both.
+
+- Stands aside in Simulator Upgrade's Custom Training course, as it already does on Training Dummy's courses: that mod
+  shows its own meters panel there (Battle Meters' and Training Dummy's meters in one), so the two panels no longer
+  overlap. Battle Meters looks for the `meters-active.txt` marker Simulator Upgrade keeps in its mod folder while a
+  course runs, at the battle's start and once a second after it. Everywhere else it works exactly as in 1.1.0.
+
 ## 1.1.0 (2026-11-08)
 
 - Damage and healing by character, with the optional Battle Meters Native mod (UE4SS 3.0.1 only). DPS and HPS get a coloured
