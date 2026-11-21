@@ -81,8 +81,7 @@ it hides its panel for that battle and adds no killing blow.
 Simulator Upgrade's Custom Training course has its own meters panel, which does what Battle Meters and Training Dummy
 do together. While a course runs that mod keeps a file, `meters-active.txt`, in its folder (`SimulatorUpgrade`;
 `SimulatorOverhaul` in a build from before it was renamed on 2026-11-21; `SimOverhaulMeters` in its development
-build). At each battle start Battle Meters looks for it (`sim_overhaul.lua`, a
-plain file check, no game calls) and, if it's there, hides its panel for that battle as on Training Dummy's courses.
+build). Battle Meters looks for it (`sim_overhaul.lua`, a plain file check, no game calls) when a battle starts and then once a second while it runs: Custom Training says its course started a few seconds after the battle begins (seen 2026-11-21: 4 s), so the file isn't there yet at the start and, if it's there, hides its panel for that battle as on Training Dummy's courses.
 Simulator Upgrade removes the file when the course ends and whenever it starts up, so a crash mid-course can't leave
 Battle Meters hidden. An older Battle Meters doesn't know the file and still draws its panel there; Simulator Upgrade
 then moves its own panel to the top right of the screen, clear of Battle Meters'.

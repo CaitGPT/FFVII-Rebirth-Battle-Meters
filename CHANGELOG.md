@@ -4,7 +4,7 @@
 
 - Stands aside in Simulator Upgrade's Custom Training course, as it does on Training Dummy's courses: that mod draws its
   own meters panel there (Battle Meters' and Training Dummy's meters in one). Battle Meters checks for the
-  `meters-active.txt` marker Simulator Upgrade keeps in its mod folder while a course runs, once per battle start
+  `meters-active.txt` marker Simulator Upgrade keeps in its mod folder while a course runs, at the battle's start and once a second after it
   (`SimulatorUpgrade`, or `SimulatorOverhaul` from before that mod's rename).
 
 ## 1.1.0 (2026-11-08)
